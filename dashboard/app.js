@@ -15,7 +15,10 @@ let statsData = {
     successRate: 100,
     errorCount: 0,
     retryCount: 0,
-    dlqCount: 0
+    dlqCount: 0,
+    processingErrors: [],
+    dlqMessages: [],
+    retryMessages: []
 };
 
 // Initialize Dashboard
@@ -146,6 +149,9 @@ async function loadConsumerStats() {
             statsData.totalOrders = data.ordersProcessed || 0;
             statsData.runningAverage = data.runningAverage || 0;
             statsData.totalRevenue = data.totalAmount || 0;
+            statsData.errorCount = data.errorCount || 0;
+            statsData.retryCount = data.retryCount || 0;
+            statsData.dlqCount = data.dlqCount || 0;
             
             // Calculate success rate
             if (data.ordersProcessed > 0) {
@@ -155,10 +161,58 @@ async function loadConsumerStats() {
             
             // Update UI
             updateStatsUI();
+            
+            // Load error details if present
+            if (data.errorCount > 0 || data.retryCount > 0 || data.dlqCount > 0) {
+                loadErrorDetails();
+            }
         }
     } catch (error) {
         console.error('Error loading consumer stats:', error);
     }
+}
+
+// Load Error Details for DLQ and Retry
+async function loadErrorDetails() {
+    try {
+        // Try to fetch DLQ messages (if endpoint exists)
+        const dlqResponse = await fetch(`${API_BASE.consumer}/api/consumer/dlq`).catch(() => null);
+        if (dlqResponse && dlqResponse.ok) {
+            const dlqData = await dlqResponse.json();
+            statsData.dlqMessages = Array.isArray(dlqData) ? dlqData : [];
+            updateDLQTable();
+        }
+        
+        // Try to fetch retry messages (if endpoint exists)
+        const retryResponse = await fetch(`${API_BASE.consumer}/api/consumer/retry`).catch(() => null);
+        if (retryResponse && retryResponse.ok) {
+            const retryData = await retryResponse.json();
+            statsData.retryMessages = Array.isArray(retryData) ? retryData : [];
+        }
+    } catch (error) {
+        console.error('Error loading error details:', error);
+    }
+}
+
+// Update DLQ Table
+function updateDLQTable() {
+    const dlqTableBody = document.getElementById('dlqTableBody');
+    if (!dlqTableBody) return;
+    
+    if (statsData.dlqMessages.length === 0) {
+        dlqTableBody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #7f8c8d;">No DLQ messages</td></tr>';
+        return;
+    }
+    
+    dlqTableBody.innerHTML = statsData.dlqMessages.slice(0, 10).map(msg => `
+        <tr>
+            <td>${new Date(msg.timestamp || Date.now()).toLocaleTimeString()}</td>
+            <td><code>${msg.orderId || 'N/A'}</code></td>
+            <td>${msg.product || 'N/A'}</td>
+            <td><span class="error-badge">${msg.errorType || 'Processing Error'}</span></td>
+            <td title="${msg.errorMessage || 'Unknown error'}">${(msg.errorMessage || 'Unknown error').substring(0, 50)}...</td>
+        </tr>
+    `).join('');
 }
 
 // Update Statistics UI
@@ -167,13 +221,46 @@ function updateStatsUI() {
     document.getElementById('runningAverage').textContent = statsData.runningAverage.toFixed(2);
     document.getElementById('totalRevenue').textContent = statsData.totalRevenue.toFixed(2);
     document.getElementById('successRate').textContent = statsData.successRate;
-    document.getElementById('errorCount').textContent = statsData.errorCount;
-    document.getElementById('retryCount').textContent = statsData.retryCount;
-    document.getElementById('dlqCount').textContent = statsData.dlqCount;
     
-    // Simulate other metrics (in real app, get from Kafka metrics)
-    document.getElementById('throughput').textContent = Math.floor(Math.random() * 100);
-    document.getElementById('avgLatency').textContent = Math.floor(Math.random() * 50);
+    // Error tracking metrics with visual indicators
+    const errorCountEl = document.getElementById('errorCount');
+    const retryCountEl = document.getElementById('retryCount');
+    const dlqCountEl = document.getElementById('dlqCount');
+    
+    errorCountEl.textContent = statsData.errorCount;
+    retryCountEl.textContent = statsData.retryCount;
+    dlqCountEl.textContent = statsData.dlqCount;
+    
+    // Add visual indicators for errors
+    if (statsData.errorCount > 0) {
+        errorCountEl.style.color = '#e74c3c';
+        errorCountEl.style.fontWeight = 'bold';
+    } else {
+        errorCountEl.style.color = '#27ae60';
+    }
+    
+    if (statsData.dlqCount > 0) {
+        dlqCountEl.style.color = '#e74c3c';
+        dlqCountEl.style.fontWeight = 'bold';
+    } else {
+        dlqCountEl.style.color = '#27ae60';
+    }
+    
+    if (statsData.retryCount > 0) {
+        retryCountEl.style.color = '#f39c12';
+        retryCountEl.style.fontWeight = 'bold';
+    } else {
+        retryCountEl.style.color = '#27ae60';
+    }
+    
+    // Update throughput (calculate from recent orders)
+    const recentOrders = ordersHistory.filter(o => 
+        Date.now() - new Date(o.timestamp).getTime() < 60000
+    ).length;
+    document.getElementById('throughput').textContent = recentOrders;
+    
+    // Simulate metrics (in production, get from Kafka)
+    document.getElementById('avgLatency').textContent = Math.floor(Math.random() * 50) + 10;
     document.getElementById('consumerLag').textContent = Math.floor(Math.random() * 5);
     document.getElementById('ordersTopicCount').textContent = statsData.totalOrders;
     document.getElementById('retryTopicCount').textContent = statsData.retryCount;
@@ -443,3 +530,60 @@ console.log(`
 ║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
 `);
+
+// Clear DLQ (simulation)
+function clearDLQ() {
+    if (confirm('Are you sure you want to clear all DLQ messages?')) {
+        statsData.dlqMessages = [];
+        statsData.dlqCount = 0;
+        updateDLQTable();
+        updateStatsUI();
+        showToast('success', 'DLQ Cleared', 'All DLQ messages have been cleared');
+    }
+}
+
+// Show DLQ Details
+function showDLQDetails() {
+    const count = statsData.dlqCount;
+    const message = count > 0 
+        ? `There are ${count} messages in the Dead Letter Queue. These are orders that failed processing after all retry attempts.`
+        : 'No messages in DLQ. All orders are processing successfully!';
+    
+    alert(`DLQ Status:\n\n${message}`);
+}
+
+// Simulate Error for Demo
+async function simulateError() {
+    const orderId = 'ERR' + Date.now();
+    const product = 'Test Product';
+    const price = -1; // Invalid price to trigger error
+    
+    try {
+        showLoading(true);
+        const response = await fetch(
+            `${API_BASE.producer}/api/orders?orderId=${orderId}&product=${encodeURIComponent(product)}&price=${price}`,
+            { method: 'POST' }
+        );
+        
+        if (!response.ok) {
+            // Add to DLQ simulation
+            statsData.dlqMessages.unshift({
+                timestamp: new Date().toISOString(),
+                orderId: orderId,
+                product: product,
+                errorType: 'ValidationError',
+                errorMessage: 'Invalid price: Price must be greater than 0'
+            });
+            statsData.dlqCount++;
+            statsData.errorCount++;
+            
+            updateDLQTable();
+            updateStatsUI();
+            showToast('error', 'Error Simulated', 'Order sent to DLQ');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+    } finally {
+        showLoading(false);
+    }
+}

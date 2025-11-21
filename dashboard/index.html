@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kafka Order Processing Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
@@ -15,9 +18,14 @@
                 <i class="fas fa-stream"></i>
                 <h1>Kafka Order Processing System</h1>
             </div>
-            <div class="status-indicator">
-                <span class="status-dot" id="systemStatus"></span>
-                <span id="systemStatusText">Checking...</span>
+            <div class="header-actions">
+                <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Toggle Theme">
+                    <i class="fas fa-moon"></i>
+                </button>
+                <div class="status-indicator">
+                    <span class="status-dot" id="systemStatus"></span>
+                    <span id="systemStatusText">Checking...</span>
+                </div>
             </div>
         </div>
     </header>
@@ -286,6 +294,37 @@
                         <i class="fas fa-skull"></i> <strong>orders-dlq:</strong> <span id="dlqTopicCount">0</span> messages
                     </div>
                 </div>
+            </div>
+        </section>
+
+        <!-- Dead Letter Queue Monitor -->
+        <section class="section dlq-section">
+            <h2><i class="fas fa-exclamation-triangle"></i> Dead Letter Queue (DLQ) Monitor</h2>
+            <div class="table-container">
+                <table class="orders-table">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Order ID</th>
+                            <th>Product</th>
+                            <th>Error Type</th>
+                            <th>Error Message</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dlqTableBody">
+                        <tr>
+                            <td colspan="5" style="text-align: center; color: #7f8c8d;">No DLQ messages</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="dlq-actions">
+                <button class="btn btn-secondary" onclick="loadErrorDetails()">
+                    <i class="fas fa-sync"></i> Refresh DLQ
+                </button>
+                <button class="btn btn-secondary" onclick="showDLQDetails()">
+                    <i class="fas fa-info-circle"></i> DLQ Details
+                </button>
             </div>
         </section>
 
