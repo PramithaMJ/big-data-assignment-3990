@@ -1,561 +1,542 @@
 # Kafka Order Processing System
 
-A comprehensive, production-ready Kafka-based order processing system with Avro serialization, retry mechanisms, Dead Letter Queue (DLQ), and real-time running average aggregation.
+**Production-Ready Microservices with Apache Kafka & Avro Serialization**
 
-## 📋 Table of Contents
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3.5-brightgreen.svg)](https://spring.io/projects/spring-boot)
+[![Kafka](https://img.shields.io/badge/Apache%20Kafka-3.7.1-black.svg)](https://kafka.apache.org/)
+[![Confluent](https://img.shields.io/badge/Confluent%20Platform-7.6.0-blue.svg)](https://www.confluent.io/)
+[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED.svg)](https://www.docker.com/)
+[![Java](https://img.shields.io/badge/Java-17%20LTS-orange.svg)](https://openjdk.org/)
+[![Avro](https://img.shields.io/badge/Apache%20Avro-1.11.3-red.svg)](https://avro.apache.org/)
 
-- [Architecture](#architecture)
+---
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Quick Start](#quick-start)
+- [System Architecture](#system-architecture)
 - [Features](#features)
 - [Technology Stack](#technology-stack)
 - [Project Structure](#project-structure)
-- [Prerequisites](#prerequisites)
-- [Quick Start](#quick-start)
-- [Configuration](#configuration)
+- [Deployment Options](#deployment-options)
 - [API Documentation](#api-documentation)
-- [Monitoring](#monitoring)
-- [Testing](#testing)
-- [Troubleshooting](#troubleshooting)
+- [Monitoring & Operations](#monitoring--operations)
 
-## 🏗️ Architecture
+## Overview
 
-The system consists of three main components:
+A **production-grade distributed order processing system** built with Apache Kafka, demonstrating enterprise-level event streaming patterns, fault tolerance, and microservices architecture.
 
-1. **Producer Service** (Port 8090)
-   - Generates and publishes order events to Kafka
-   - Uses Avro serialization with Schema Registry
-   - REST API for order creation and batch operations
+### Key Capabilities
 
-2. **Consumer Service** (Port 8082)
-   - Consumes orders from Kafka topics
-   - Implements retry logic for failed messages
-   - Handles Dead Letter Queue for permanently failed messages
-   - Calculates running average of order amounts
+**High Availability** - 3-node Kafka cluster with RF=3, min ISR=2
+**Schema Management** - Confluent Schema Registry with Avro serialization
+**Fault Tolerance** - Automatic retry with exponential backoff + Dead Letter Queue
+**Real-time Aggregation** - Thread-safe running average calculation
+**Containerized** - Full Docker Compose orchestration with health checks
+**Observable** - Kafka UI dashboard, structured logging, metrics endpoints
+**Production-Ready** - Idempotent producers, manual commits, graceful shutdown
 
-3. **Kafka Infrastructure**
-   - 3-broker Kafka cluster with Zookeeper
-   - Schema Registry for Avro schema management (Port 8081)
-   - Kafka UI for monitoring and management
+---
 
-### Data Flow
+## Quick Start
+
+### Prerequisites
+
+- **Docker Desktop** (version 20.x or higher)
+- **Docker Compose** (version 2.x or higher)
+- **8GB RAM** minimum for Docker
+- **macOS/Linux** (Windows with WSL2)
+
+### One-Command Deployment
+
+```bash
+# Clone repository
+git clone <repository-url>
+cd Big-data-Assignment
+
+# Start entire system (infrastructure + services)
+./infrastructure/scripts/quick-start.sh
+```
+
+**That's it!** The script will:
+
+1. Start ZooKeeper
+2. Start 3 Kafka brokers
+3. Start Schema Registry
+4. Build & deploy Producer service
+5. Build & deploy Consumer service
+6. Start Kafka UI
+7. Create topics (orders, orders-retry, orders-dlq)
+8. Run health checks
+
+**System Ready in ~60 seconds!**
+
+### Verify Deployment
+
+```bash
+# Check all containers are healthy
+docker ps
+
+# Test Producer service
+curl http://localhost:8090/actuator/health
+
+# Test Consumer service
+curl http://localhost:8082/actuator/health
+
+# Access Kafka UI
+open http://localhost:8080
+```
+
+### Send Your First Order
+
+```bash
+curl -X POST "http://localhost:8090/api/orders?orderId=DEMO001&product=Laptop&price=999.99"
+```
+
+**Check the result:**
+
+```bash
+curl http://localhost:8082/api/consumer/stats | python3 -m json.tool
+```
+
+## System Architecture
+
+### High-Level Overview
 
 ```
-Producer → orders topic (3 partitions) → Consumer
-                                           ↓ (on failure)
-                                    orders-retry topic
-                                           ↓ (max retries reached)
-                                    orders-dlq topic
+┌─────────────────────┐         ┌──────────────────────────────────┐         ┌─────────────────────┐
+│  Producer Service   │         │       Kafka Cluster (3 nodes)    │         │  Consumer Service   │
+│    (Port 8090)      │────────▶│  ┌────────┬────────┬──────────┐  │────────▶│    (Port 8082)      │
+│                     │         │  │ kafka1 │ kafka2 │  kafka3  │  │         │                     │
+│  REST API:          │         │  │ :9092  │ :9093  │  :9094   │  │         │  Processes:         │
+│  • POST /api/orders │         │  └────────┴────────┴──────────┘  │         │  • Order validation │
+│  • Avro Serializer  │         │           RF=3, min ISR=2        │         │  • Running average  │
+└─────────────────────┘         │                                  │         │  • Retry handling   │
+         │                      │  Topics:                         │         │  • DLQ processing   │
+         │                      │  • orders (3 partitions)         │         └─────────────────────┘
+         │                      │  • orders-retry (3 partitions)   │                  │
+         │                      │  • orders-dlq (1 partition)      │                  │
+         │                      └──────────────────────────────────┘                  │
+         │                                    │                                       │
+         v                                    v                                       v
+┌─────────────────────┐         ┌──────────────────────────────────┐         ┌─────────────────────┐
+│  Schema Registry    │◀────────│         ZooKeeper                │         │     Kafka UI        │
+│    (Port 8081)      │         │        (Port 2181)               │         │    (Port 8080)      │
+│                     │         │                                  │         │                     │
+│  • Schema storage   │         │  • Cluster coordination          │         │  • Visual monitoring│
+│  • Schema evolution │         │  • Leader election               │         │  • Message browser  │
+│  • Validation       │         │  • Broker metadata               │         │  • Consumer groups  │
+└─────────────────────┘         └──────────────────────────────────┘         └─────────────────────┘
 ```
 
-## ✨ Features
+### Message Flow
 
-### Producer Service
-- ✅ Avro-based serialization with Schema Registry
-- ✅ Idempotent producer configuration
-- ✅ REST API for order creation
-- ✅ Batch order generation
-- ✅ Partition-specific message publishing
-- ✅ Asynchronous message sending with callbacks
-- ✅ Comprehensive error handling
-
-### Consumer Service
-- ✅ Avro deserialization
-- ✅ Manual offset commit for reliability
-- ✅ Concurrent processing (3 threads for main topic)
-- ✅ Exponential backoff retry mechanism
-- ✅ Dead Letter Queue for failed messages
-- ✅ Real-time running average calculation
-- ✅ Thread-safe aggregation
-- ✅ REST API for statistics and monitoring
-
-### Reliability Features
-- ✅ At-least-once delivery guarantee
-- ✅ Exactly-once semantics (idempotent producer)
-- ✅ Replication factor of 3
-- ✅ Min in-sync replicas: 2
-- ✅ Automatic retry on failure (up to 3 attempts)
-- ✅ DLQ for permanently failed messages
-- ✅ Manual offset management
-
-## 🛠️ Technology Stack
-
-- **Java 17**
-- **Spring Boot 3.5.7**
-- **Apache Kafka 3.x** (Confluent Platform 7.5.0)
-- **Apache Avro 1.11.3**
-- **Confluent Schema Registry 7.5.0**
-- **Docker & Docker Compose**
-- **Maven**
-- **Lombok**
-
-## 📁 Project Structure
+**1. Normal Flow (Happy Path)**
 
 ```
-kafka-order-system/
+Client → Producer API → Avro Serialization → Kafka Topic → Consumer → Process → Running Average 
+```
+
+**2. Retry Flow (Temporary Failure)**
+
+```
+Consumer → Processing Error → orders-retry topic → Exponential Backoff (2s, 4s, 8s) → Retry → Success 
+```
+
+**3. DLQ Flow (Permanent Failure)**
+
+```
+Consumer → 3 Failed Retries → orders-dlq topic → Manual Investigation → Fix & Reprocess 🔧
+```
+
+### Container Architecture
+
+
+| Container            | Image                                 | Port | Purpose                  |
+| -------------------- | ------------------------------------- | ---- | ------------------------ |
+| **zookeeper**        | confluentinc/cp-zookeeper:7.6.0       | 2181 | Cluster coordination     |
+| **kafka1**           | confluentinc/cp-kafka:7.6.0           | 9092 | Kafka broker #1          |
+| **kafka2**           | confluentinc/cp-kafka:7.6.0           | 9093 | Kafka broker #2          |
+| **kafka3**           | confluentinc/cp-kafka:7.6.0           | 9094 | Kafka broker #3          |
+| **schema-registry**  | confluentinc/cp-schema-registry:7.6.0 | 8081 | Avro schema management   |
+| **kafka-ui**         | provectuslabs/kafka-ui:latest         | 8080 | Visual monitoring        |
+| **producer-service** | Custom (Spring Boot 3.3.5)            | 8090 | Order creation API       |
+| **consumer-service** | Custom (Spring Boot 3.3.5)            | 8082 | Order processing + stats |
+
+---
+
+## Features
+
+### 1. High Availability
+
+- **3-node Kafka cluster** with replication factor 3
+- **Automatic failover** - survives single broker failure
+- **No single point of failure** - all data replicated
+
+### 2. Schema Management
+
+- **Avro binary serialization** - 50% smaller than JSON
+- **Schema Registry** - centralized schema versioning
+- **Schema evolution** - backward/forward compatibility
+
+### 3. Fault Tolerance
+
+- **Retry mechanism** - automatic retry with exponential backoff
+- **Dead Letter Queue** - preserve failed messages for investigation
+- **Manual commits** - at-least-once delivery guarantee
+- **Idempotent producer** - exactly-once semantics
+
+### 4. Real-time Processing
+
+- **Running average calculation** - thread-safe aggregation
+- **Parallel processing** - 3 partitions for throughput
+- **Low latency** - sub-second processing times
+
+### 5. Observability
+
+- **Kafka UI** - visual dashboard for monitoring
+- **Health checks** - actuator endpoints for all services
+- **Structured logging** - detailed processing logs
+- **Consumer metrics** - lag, throughput, success rate
+
+### 6. Production-Ready
+
+- **Containerized** - Docker Compose orchestration
+- **Health checks** - all containers monitored
+- **Graceful shutdown** - proper cleanup on stop
+- **Resource optimized** - multi-stage Dockerfiles
+
+---
+
+## Technology Stack
+
+### Core Technologies
+
+
+| Category           | Technology         | Version | Why?                                  |
+| ------------------ | ------------------ | ------- | ------------------------------------- |
+| **Message Broker** | Apache Kafka       | 3.7.1   | Industry standard for event streaming |
+| **Platform**       | Confluent Platform | 7.6.0   | Enterprise Kafka distribution         |
+| **Serialization**  | Apache Avro        | 1.11.3  | Binary format, schema evolution       |
+| **Framework**      | Spring Boot        | 3.3.5   | Rapid microservices development       |
+| **Language**       | Java               | 17 LTS  | Long-term support, modern features    |
+| **Build Tool**     | Maven              | 3.9.6   | Dependency management, plugins        |
+| **Container**      | Docker             | 24.x    | Consistent deployment environment     |
+| **Orchestration**  | Docker Compose     | 2.x     | Multi-container management            |
+| **Monitoring**     | Kafka UI           | Latest  | Visual monitoring and debugging       |
+
+### Key Libraries
+
+- **spring-kafka** 3.2.4 - Kafka integration
+- **confluent-kafka-avro-serializer** 7.6.0 - Avro serialization
+- **avro-maven-plugin** 1.11.3 - Code generation from schemas
+- **spring-boot-starter-actuator** 3.3.5 - Health checks and metrics
+- **lombok** 1.18.30 - Boilerplate reduction
+
+---
+
+## Project Structure
+
+```
+Big-data-Assignment/
 │
-├── producer-service/
-│   ├── src/main/java/com/pramithamj/kafka/
-│   │   ├── config/
-│   │   │   └── KafkaProducerConfig.java
-│   │   ├── controller/
-│   │   │   └── OrderController.java
-│   │   ├── producer/
-│   │   │   └── OrderProducer.java
-│   │   └── ProducerServiceApplication.java
-│   ├── src/main/resources/
-│   │   ├── avro/
-│   │   │   └── order.avsc
-│   │   └── application.properties
+├── producer-service/              # Order creation microservice
+│   ├── src/
+│   │   ├── main/
+│   │   │   ├── java/com/pramithamj/kafka/
+│   │   │   │   ├── ProducerServiceApplication.java
+│   │   │   │   ├── config/
+│   │   │   │   │   └── KafkaProducerConfig.java      # Kafka producer config
+│   │   │   │   ├── controller/
+│   │   │   │   │   └── OrderController.java          # REST API endpoints
+│   │   │   │   └── producer/
+│   │   │   │       └── OrderProducer.java            # Kafka message sender
+│   │   │   └── resources/
+│   │   │       ├── application.properties            # Local config
+│   │   │       ├── application-docker.properties     # Docker config
+│   │   │       └── avro/
+│   │   │           └── order.avsc                    # Avro schema
+│   │   └── test/
+│   ├── Dockerfile                                     # Multi-stage build
+│   ├── .dockerignore                                  # Build optimization
+│   └── pom.xml                                        # Maven dependencies
+│
+├── consumer-service/              # Order processing microservice
+│   ├── src/
+│   │   ├── main/
+│   │   │   ├── java/com/pramithamj/kafka/
+│   │   │   │   ├── ConsumerServiceApplication.java
+│   │   │   │   ├── aggregation/
+│   │   │   │   │   └── RunningAverageCalculator.java # Thread-safe aggregation
+│   │   │   │   ├── config/
+│   │   │   │   │   ├── KafkaConsumerConfig.java      # Consumer config
+│   │   │   │   │   └── KafkaProducerConfig.java      # For retry/DLQ
+│   │   │   │   ├── consumer/
+│   │   │   │   │   └── OrderConsumer.java            # Message listeners
+│   │   │   │   ├── controller/
+│   │   │   │   │   └── ConsumerController.java       # Stats API
+│   │   │   │   ├── retry/
+│   │   │   │   │   └── RetryHandler.java             # Exponential backoff
+│   │   │   │   └── dlq/
+│   │   │   │       └── DLQHandler.java               # Dead letter queue
+│   │   │   └── resources/
+│   │   │       ├── application.properties
+│   │   │       ├── application-docker.properties
+│   │   │       └── avro/
+│   │   │           └── order.avsc
+│   │   └── test/
+│   ├── Dockerfile
+│   ├── .dockerignore
 │   └── pom.xml
 │
-├── consumer-service/
-│   ├── src/main/java/com/pramithamj/kafka/
-│   │   ├── config/
-│   │   │   ├── KafkaConsumerConfig.java
-│   │   │   └── KafkaProducerConfig.java
-│   │   ├── consumer/
-│   │   │   └── OrderConsumer.java
-│   │   ├── aggregation/
-│   │   │   └── RunningAverageCalculator.java
-│   │   ├── retry/
-│   │   │   └── RetryHandler.java
-│   │   ├── dlq/
-│   │   │   └── DLQHandler.java
-│   │   ├── controller/
-│   │   │   └── ConsumerController.java
-│   │   └── ConsumerServiceApplication.java
-│   ├── src/main/resources/
-│   │   ├── avro/
-│   │   │   └── order.avsc
-│   │   └── application.properties
-│   └── pom.xml
-│
-├── infrastructure/
+├── infrastructure/                # Infrastructure as code
 │   ├── docker/
-│   │   ├── docker-compose.yml
-│   │   └── .env
+│   │   ├── docker-compose.yml                        # 8 containers orchestration
+│   │   ├── .env                                      # Environment variables
+│   │   └── .env.example                              # Template
 │   └── scripts/
-│       ├── create-topics.sh
-│       ├── check-cluster.sh
-│       └── seed-data.sh
+│       ├── quick-start.sh                            # One-command deployment
+│       ├── create-topics.sh                          # Kafka topic creation
+│       ├── seed-data.sh                              # Test data generation
 │
-└── docs/
-    └── README.md
+│
+├── docs/                          # Comprehensive documentation
+│   ├── ARCHITECTURE.md                               # System architecture
+│   └── MANUAL-STARTUP-DEMO-GUIDE.md                  # Step-by-step guide
+│
+└── README.md                      # This file
 ```
 
-## 📋 Prerequisites
+---
 
-- Java 17 or higher
-- Maven 3.6+
-- Docker and Docker Compose
-- At least 4GB of available RAM for Docker
+## Deployment Options
 
-## 🚀 Quick Start
+### Option 1: Quick Start
 
-### 1. Start Kafka Infrastructure
+**One command to deploy everything:**
+
+```bash
+./infrastructure/scripts/quick-start.sh
+```
+
+### Option 2: Step-by-Step Deployment
+
+**Step 1: Start infrastructure**
 
 ```bash
 cd infrastructure/docker
-docker-compose up -d
+docker compose up -d zookeeper kafka1 kafka2 kafka3 schema-registry kafka-ui
 ```
 
-Wait for all services to be healthy (~30 seconds):
+**Step 2: Create topics**
 
 ```bash
 cd ../scripts
-chmod +x *.sh
-./check-cluster.sh
-```
-
-### 2. Create Kafka Topics
-
-```bash
 ./create-topics.sh
 ```
 
-This creates:
-- `orders` (3 partitions, RF=3)
-- `orders-retry` (3 partitions, RF=3)
-- `orders-dlq` (1 partition, RF=3)
-
-### 3. Build Services
-
-**Producer Service:**
-```bash
-cd ../../producer-service
-mvn clean package
-```
-
-**Consumer Service:**
-```bash
-cd ../consumer-service
-mvn clean package
-```
-
-### 4. Start Services
-
-**Terminal 1 - Producer:**
-```bash
-cd producer-service
-mvn spring-boot:run
-```
-
-**Terminal 2 - Consumer:**
-```bash
-cd consumer-service
-mvn spring-boot:run
-```
-
-### 5. Send Test Orders
+**Step 3: Build and deploy services**
 
 ```bash
-# Single order
-curl -X POST http://localhost:8090/api/orders
-
-# Batch of 50 orders
-curl -X POST "http://localhost:8090/api/orders/batch?count=50"
+cd ../../
+docker compose -f infrastructure/docker/docker-compose.yml up -d producer-service consumer-service
 ```
 
-### 6. Check Statistics
-
-```bash
-# Consumer statistics
-curl http://localhost:8082/api/consumer/stats
-
-# Running average
-curl http://localhost:8082/api/consumer/average
-```
-
-## ⚙️ Configuration
-
-### Producer Service (application.properties)
-
-```properties
-spring.application.name=producer-service
-server.port=8090
-
-spring.kafka.bootstrap-servers=localhost:9092,localhost:9093,localhost:9094
-spring.kafka.properties.schema.registry.url=http://localhost:8081
-
-kafka.topic.orders=orders
-```
-
-### Consumer Service (application.properties)
-
-```properties
-spring.application.name=consumer-service
-server.port=8082
-
-spring.kafka.bootstrap-servers=localhost:9092,localhost:9093,localhost:9094
-spring.kafka.properties.schema.registry.url=http://localhost:8081
-
-spring.kafka.consumer.group-id=order-consumer-group
-spring.kafka.consumer.max-poll-records=500
-spring.kafka.consumer.max-poll-interval-ms=300000
-
-kafka.topic.orders=orders
-kafka.topic.orders-retry=orders-retry
-kafka.topic.orders-dlq=orders-dlq
-
-kafka.retry.max-attempts=3
-```
-
-### Environment Variables (.env)
-
-```properties
-CONFLUENT_VERSION=7.5.0
-REPLICATION_FACTOR=3
-MIN_ISR=2
-KAFKA1_PORT=9092
-KAFKA2_PORT=9093
-KAFKA3_PORT=9094
-SCHEMA_REGISTRY_PORT=8081
-KAFKA_UI_PORT=8080
-```
-
-## 📡 API Documentation
+## API Documentation
 
 ### Producer Service (Port 8090)
 
-#### Create Single Order
-```bash
-POST /api/orders
-Content-Type: application/json
+#### Send Single Order
 
-{
-  "orderId": "ORD-12345",
-  "customerId": "CUST-5678",
-  "productId": "PROD-001",
-  "quantity": 2,
-  "price": 99.99,
-  "totalAmount": 199.98,
-  "orderStatus": "PENDING",
-  "timestamp": 1700000000000,
-  "paymentMethod": "CREDIT_CARD"
-}
-```
+```bash
+POST http://localhost:8090/api/orders
+
+Query Parameters:
+- orderId: string (required) - Unique order identifier
+- product: string (required) - Product name
+- price: double (required) - Order amount
+
+Example:
+curl -X POST "http://localhost:8090/api/orders?orderId=ORD001&product=Laptop&price=999.99"
 
 Response:
-```json
 {
+  "orderId": "2658",
   "success": true,
-  "orderId": "ORD-12345",
   "message": "Order sent to Kafka successfully"
 }
 ```
 
-#### Create Batch Orders
+#### Health Check
+
 ```bash
-POST /api/orders/batch?count=10
-```
+GET http://localhost:8090/actuator/health
 
 Response:
-```json
-{
-  "success": true,
-  "count": 10,
-  "orderIds": ["ORD-ABC123", "ORD-DEF456", ...],
-  "message": "10 orders sent to Kafka successfully"
-}
-```
-
-#### Send to Specific Partition
-```bash
-POST /api/orders/partition/0
-```
-
-#### Health Check
-```bash
-GET /api/orders/health
+{"status":"UP"}
 ```
 
 ### Consumer Service (Port 8082)
 
 #### Get Statistics
+
 ```bash
-GET /api/consumer/stats
-```
+GET http://localhost:8082/api/consumer/stats
 
 Response:
-```json
 {
-  "ordersProcessed": 150,
-  "totalAmount": 15234.56,
-  "runningAverage": 101.56,
-  "detailedStats": "Processed: 150 | Errors: 5 | Success Rate: 96.67% | ..."
+    "ordersProcessed": 25,
+    "totalAmount": 4567.89,
+    "runningAverage": 182.72,
+    "detailedStats": "Processed: 25 | Errors: 1 | Success Rate: 96.00% | Total Amount: $4567.89 | Running Average: $182.72"
 }
-```
-
-#### Get Running Average
-```bash
-GET /api/consumer/average
-```
-
-Response:
-```json
-{
-  "currentAverage": 101.56,
-  "orderCount": 150,
-  "totalAmount": 15234.56,
-  "statistics": "Orders Processed: 150 | Total Amount: $15234.56 | Running Average: $101.56"
-}
-```
-
-#### Reset Statistics
-```bash
-POST /api/consumer/stats/reset
 ```
 
 #### Health Check
-```bash
-GET /api/consumer/health
-```
-
-## 📊 Monitoring
-
-### Kafka UI
-Access the web interface at: **http://localhost:8080**
-
-Features:
-- View topics, partitions, and messages
-- Monitor consumer groups and lag
-- Inspect Schema Registry schemas
-- View broker metrics
-
-### Schema Registry
-Access at: **http://localhost:8081**
-
-View registered schemas:
-```bash
-curl http://localhost:8081/subjects
-```
-
-### Application Logs
-
-Both services provide detailed logging:
-- INFO level for normal operations
-- DEBUG level for detailed processing
-- WARN/ERROR for issues and failures
-
-## 🧪 Testing
-
-### Test Producer
-```bash
-# Generate 100 random orders
-curl -X POST "http://localhost:8090/api/orders/batch?count=100"
-```
-
-### Test Consumer
-Watch consumer logs to see processing in real-time:
-```bash
-# Consumer terminal will show:
-# - Order processing
-# - Running average updates
-# - Retry attempts
-# - DLQ entries
-```
-
-### Test Retry Mechanism
-
-The system automatically simulates ~5% failure rate for testing. Check logs for:
-- Failed order processing
-- Retry attempts with exponential backoff
-- Final DLQ entries after max retries
-
-### Test Running Average
 
 ```bash
-# Send orders and check average
-curl -X POST "http://localhost:8090/api/orders/batch?count=20"
-sleep 5
-curl http://localhost:8082/api/consumer/average
+GET http://localhost:8082/actuator/health
+
+Response:
+{"status":"UP"}
 ```
 
-### Verify Topics
+### Schema Registry (Port 8081)
+
+#### List Schemas
 
 ```bash
-cd infrastructure/scripts
-./check-cluster.sh
+GET http://localhost:8081/subjects
+
+Response:
+["orders-value"]
 ```
 
-## 🔧 Troubleshooting
+#### Get Schema Details
 
-### Issue: Services can't connect to Kafka
-
-**Check if Kafka is running:**
 ```bash
-cd infrastructure/scripts
-./check-cluster.sh
+GET http://localhost:8081/subjects/orders-value/versions/1
+
+Response:
+{
+  "subject": "orders-value",
+  "version": 1,
+  "id": 1,
+  "schema": "{...}"
+}
 ```
 
-**Restart Kafka:**
+---
+
+## Monitoring & Operations
+
+### Kafka UI Dashboard
+
+**Access:** http://localhost:8080
+
+**Features:**
+
+- **Brokers** - Health status of all 3 Kafka nodes
+- **Topics** - Message counts, partitions, replication
+- **Messages** - Browse and inspect individual messages
+- **Consumers** - Consumer groups, lag, assignments
+- **Schemas** - Avro schema registry visualization
+
+### Health Checks
+
 ```bash
-cd infrastructure/docker
-docker-compose restart
+# Check all containers
+docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+# Check specific service
+docker inspect producer-service --format='{{json .State.Health}}' | python3 -m json.tool
+
+# Check Kafka cluster
+./infrastructure/scripts/check-cluster.sh
 ```
 
-### Issue: Schema Registry errors
+### Logs
 
-**Check Schema Registry:**
 ```bash
-curl http://localhost:8081/subjects
+# View producer logs
+docker logs producer-service --tail 50 --follow
+
+# View consumer logs
+docker logs consumer-service --tail 50 --follow
+
+# View Kafka broker logs
+docker logs kafka1 --tail 50 --follow
+
+# View only order processing messages
+docker logs consumer-service 2>&1 | grep "Received order"
 ```
 
-**Restart Schema Registry:**
+### Metrics
+
 ```bash
-docker restart schema-registry
+# Consumer statistics
+curl http://localhost:8082/api/consumer/stats | python3 -m json.tool
+
+# Topic details
+docker exec kafka1 kafka-topics --describe --bootstrap-server kafka1:19092 --topic orders
+
+# Consumer group lag
+docker exec kafka1 kafka-consumer-groups --describe \
+  --bootstrap-server kafka1:19092 --group order-consumer-group
 ```
 
-### Issue: Consumer not processing messages
+---
 
-**Check consumer group:**
+### Avro Schema
+
+**File:** `producer-service/src/main/resources/avro/order.avsc`
+
+```json
+{
+  "type": "record",
+  "name": "Order",
+  "namespace": "com.pramithamj.kafka.model",
+  "fields": [
+    {"name": "orderId", "type": "string"},
+    {"name": "product", "type": "string"},
+    {"name": "price", "type": "double"},
+    {"name": "timestamp", "type": "long"}
+  ]
+}
+```
+
+## 👥 Authors
+
+**Pramitha M.J.**
+
+- GitHub: [@PramithaMJ](https://github.com/PramithaMJ)
+
+## Quick Command Reference
+
 ```bash
-docker exec kafka1 kafka-consumer-groups \
-  --bootstrap-server localhost:9092 \
-  --describe \
-  --group order-consumer-group
+# Start system
+./infrastructure/scripts/quick-start.sh
+
+# Stop system
+docker compose -f infrastructure/docker/docker-compose.yml down
+
+# Send order
+curl -X POST "http://localhost:8090/api/orders?orderId=TEST&product=Item&price=99.99"
+
+# Check stats
+curl http://localhost:8082/api/consumer/stats | python3 -m json.tool
+
+# View Kafka UI
+open http://localhost:8080
+
+# View logs
+docker logs consumer-service --tail 50 --follow
+
+# Health check
+docker ps --format "table {{.Names}}\t{{.Status}}"
+
+# Clean restart
+docker compose -f infrastructure/docker/docker-compose.yml down -v && \
+./infrastructure/scripts/quick-start.sh
 ```
-
-**Reset consumer offsets (if needed):**
-```bash
-docker exec kafka1 kafka-consumer-groups \
-  --bootstrap-server localhost:9092 \
-  --group order-consumer-group \
-  --topic orders \
-  --reset-offsets \
-  --to-earliest \
-  --execute
-```
-
-### Issue: Build failures
-
-**Clean and rebuild:**
-```bash
-mvn clean install -DskipTests
-```
-
-**Check Java version:**
-```bash
-java -version  # Should be Java 17+
-mvn -version
-```
-
-### Common Port Conflicts
-
-If ports are already in use:
-
-1. **Producer (8090):** Change `server.port` in producer `application.properties`
-2. **Consumer (8082):** Change `server.port` in consumer `application.properties`
-3. **Schema Registry (8081):** Change `SCHEMA_REGISTRY_PORT` in `.env`
-4. **Kafka UI (8080):** Change `KAFKA_UI_PORT` in `.env`
-
-## 📈 Performance Tuning
-
-### Producer Optimization
-
-```properties
-# Increase batch size for throughput
-spring.kafka.producer.batch-size=32768
-
-# Increase linger time
-spring.kafka.producer.linger-ms=20
-
-# Increase buffer memory
-spring.kafka.producer.buffer-memory=67108864
-```
-
-### Consumer Optimization
-
-```properties
-# Increase concurrent consumers
-spring.kafka.consumer.concurrency=5
-
-# Adjust poll records
-spring.kafka.consumer.max-poll-records=1000
-
-# Tune fetch settings
-spring.kafka.consumer.fetch-min-bytes=1024
-spring.kafka.consumer.fetch-max-wait-ms=500
-```
-
-## 🛡️ Production Considerations
-
-1. **Security:** Enable SSL/TLS and SASL authentication
-2. **Monitoring:** Integrate with Prometheus and Grafana
-3. **Alerting:** Set up alerts for DLQ entries and consumer lag
-4. **Backup:** Configure topic retention and backup strategies
-5. **Scaling:** Increase partitions and consumer instances for higher throughput
-6. **Error Handling:** Implement proper error tracking and recovery procedures
-
-## 📝 License
-
-This project is for educational purposes.
-
-## 👥 Contributors
-
-- Pramitha Jayasooriya
-
-## 🙏 Acknowledgments
-
-- Apache Kafka community
-- Confluent Platform
-- Spring Boot team

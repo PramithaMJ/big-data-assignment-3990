@@ -47,7 +47,7 @@ public class OrderConsumer {
             Acknowledgment acknowledgment) {
         
         try {
-            log.info("📦 Received order: orderId={}, product={}, price=${:.2f}, partition={}, offset={}", 
+            log.info(" Received order: orderId={}, product={}, price=${:.2f}, partition={}, offset={}", 
                     order.getOrderId(), order.getProduct(), order.getPrice(), partition, offset);
 
             // Process the order
