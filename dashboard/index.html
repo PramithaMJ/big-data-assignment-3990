@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kafka Order Processing Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="dashboard-header">
+        <div class="header-content">
+            <div class="logo-section">
+                <i class="fas fa-stream"></i>
+                <h1>Kafka Order Processing System</h1>
+            </div>
+            <div class="status-indicator">
+                <span class="status-dot" id="systemStatus"></span>
+                <span id="systemStatusText">Checking...</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Dashboard -->
+    <div class="dashboard-container">
+        
+        <!-- System Overview Section -->
+        <section class="overview-section">
+            <h2><i class="fas fa-chart-line"></i> System Overview</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon orders">
+                        <i class="fas fa-shopping-cart"></i>
+                    </div>
+                    <div class="stat-details">
+                        <h3>Total Orders</h3>
+                        <p class="stat-value" id="totalOrders">0</p>
+                        <span class="stat-change positive">+<span id="ordersChange">0</span> today</span>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon average">
+                        <i class="fas fa-dollar-sign"></i>
+                    </div>
+                    <div class="stat-details">
+                        <h3>Running Average</h3>
+                        <p class="stat-value">$<span id="runningAverage">0.00</span></p>
+                        <span class="stat-label">Real-time calculation</span>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon revenue">
+                        <i class="fas fa-money-bill-wave"></i>
+                    </div>
+                    <div class="stat-details">
+                        <h3>Total Revenue</h3>
+                        <p class="stat-value">$<span id="totalRevenue">0.00</span></p>
+                        <span class="stat-label">Cumulative amount</span>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon success">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <div class="stat-details">
+                        <h3>Success Rate</h3>
+                        <p class="stat-value"><span id="successRate">100</span>%</p>
+                        <span class="stat-label">Processing accuracy</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Create Order Section -->
+        <section class="action-section">
+            <h2><i class="fas fa-plus-circle"></i> Create New Order</h2>
+            <div class="order-form-container">
+                <form id="orderForm" class="order-form">
+                    <div class="form-group">
+                        <label for="orderId">
+                            <i class="fas fa-hashtag"></i> Order ID
+                        </label>
+                        <input type="text" id="orderId" placeholder="e.g., ORD12345" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="product">
+                            <i class="fas fa-box"></i> Product Name
+                        </label>
+                        <input type="text" id="product" placeholder="e.g., Laptop, Mouse, Keyboard" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="price">
+                            <i class="fas fa-tag"></i> Price ($)
+                        </label>
+                        <input type="number" id="price" step="0.01" min="0.01" placeholder="99.99" required>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-paper-plane"></i> Send Order
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="generateRandomOrder()">
+                            <i class="fas fa-random"></i> Random Order
+                        </button>
+                        <button type="button" class="btn btn-info" onclick="sendBatchOrders()">
+                            <i class="fas fa-layer-group"></i> Send 10 Orders
+                        </button>
+                    </div>
+                </form>
+
+                <div id="orderResponse" class="response-message"></div>
+            </div>
+        </section>
+
+        <!-- Kafka Cluster Status Section -->
+        <section class="cluster-section">
+            <h2><i class="fas fa-server"></i> Kafka Cluster Status</h2>
+            <div class="cluster-grid">
+                <div class="cluster-card" id="broker1">
+                    <div class="cluster-icon">
+                        <i class="fas fa-database"></i>
+                    </div>
+                    <h3>Kafka Broker 1</h3>
+                    <p class="cluster-port">Port: 9092</p>
+                    <span class="cluster-status checking">Checking...</span>
+                </div>
+
+                <div class="cluster-card" id="broker2">
+                    <div class="cluster-icon">
+                        <i class="fas fa-database"></i>
+                    </div>
+                    <h3>Kafka Broker 2</h3>
+                    <p class="cluster-port">Port: 9093</p>
+                    <span class="cluster-status checking">Checking...</span>
+                </div>
+
+                <div class="cluster-card" id="broker3">
+                    <div class="cluster-icon">
+                        <i class="fas fa-database"></i>
+                    </div>
+                    <h3>Kafka Broker 3</h3>
+                    <p class="cluster-port">Port: 9094</p>
+                    <span class="cluster-status checking">Checking...</span>
+                </div>
+
+                <div class="cluster-card" id="zookeeper">
+                    <div class="cluster-icon">
+                        <i class="fas fa-sitemap"></i>
+                    </div>
+                    <h3>ZooKeeper</h3>
+                    <p class="cluster-port">Port: 2181</p>
+                    <span class="cluster-status checking">Checking...</span>
+                </div>
+
+                <div class="cluster-card" id="schemaRegistry">
+                    <div class="cluster-icon">
+                        <i class="fas fa-file-code"></i>
+                    </div>
+                    <h3>Schema Registry</h3>
+                    <p class="cluster-port">Port: 8081</p>
+                    <span class="cluster-status checking">Checking...</span>
+                </div>
+
+                <div class="cluster-card" id="kafkaUI">
+                    <div class="cluster-icon">
+                        <i class="fas fa-chart-bar"></i>
+                    </div>
+                    <h3>Kafka UI</h3>
+                    <p class="cluster-port">Port: 8080</p>
+                    <span class="cluster-status checking">Checking...</span>
+                    <a href="http://localhost:8080" target="_blank" class="view-link">Open UI</a>
+                </div>
+            </div>
+        </section>
+
+        <!-- Services Status Section -->
+        <section class="services-section">
+            <h2><i class="fas fa-cogs"></i> Microservices Status</h2>
+            <div class="services-grid">
+                <div class="service-card" id="producerService">
+                    <div class="service-header">
+                        <i class="fas fa-rocket"></i>
+                        <h3>Producer Service</h3>
+                    </div>
+                    <div class="service-details">
+                        <p><strong>Port:</strong> 8090</p>
+                        <p><strong>Function:</strong> Order creation & sending</p>
+                        <p><strong>Status:</strong> <span class="service-status checking">Checking...</span></p>
+                    </div>
+                    <div class="service-actions">
+                        <a href="http://localhost:8090/actuator/health" target="_blank" class="btn-link">
+                            <i class="fas fa-heartbeat"></i> Health
+                        </a>
+                    </div>
+                </div>
+
+                <div class="service-card" id="consumerService">
+                    <div class="service-header">
+                        <i class="fas fa-inbox"></i>
+                        <h3>Consumer Service</h3>
+                    </div>
+                    <div class="service-details">
+                        <p><strong>Port:</strong> 8082</p>
+                        <p><strong>Function:</strong> Order processing & aggregation</p>
+                        <p><strong>Status:</strong> <span class="service-status checking">Checking...</span></p>
+                    </div>
+                    <div class="service-actions">
+                        <a href="http://localhost:8082/actuator/health" target="_blank" class="btn-link">
+                            <i class="fas fa-heartbeat"></i> Health
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Recent Orders Section -->
+        <section class="orders-section">
+            <h2><i class="fas fa-list"></i> Recent Orders</h2>
+            <div class="orders-container">
+                <table class="orders-table" id="ordersTable">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Order ID</th>
+                            <th>Product</th>
+                            <th>Price</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ordersTableBody">
+                        <tr>
+                            <td colspan="5" class="no-data">No orders yet. Create your first order above!</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Monitoring Section -->
+        <section class="monitoring-section">
+            <h2><i class="fas fa-chart-area"></i> System Monitoring</h2>
+            <div class="monitoring-grid">
+                <div class="monitor-card">
+                    <h3><i class="fas fa-exclamation-triangle"></i> Error Tracking</h3>
+                    <div class="monitor-stat">
+                        <span class="monitor-value" id="errorCount">0</span>
+                        <span class="monitor-label">Total Errors</span>
+                    </div>
+                    <div class="monitor-detail">
+                        <i class="fas fa-redo"></i> Retries: <strong id="retryCount">0</strong>
+                    </div>
+                    <div class="monitor-detail">
+                        <i class="fas fa-skull-crossbones"></i> DLQ: <strong id="dlqCount">0</strong>
+                    </div>
+                </div>
+
+                <div class="monitor-card">
+                    <h3><i class="fas fa-tachometer-alt"></i> Performance</h3>
+                    <div class="monitor-stat">
+                        <span class="monitor-value" id="throughput">0</span>
+                        <span class="monitor-label">Orders/sec</span>
+                    </div>
+                    <div class="monitor-detail">
+                        <i class="fas fa-clock"></i> Avg Latency: <strong id="avgLatency">0ms</strong>
+                    </div>
+                    <div class="monitor-detail">
+                        <i class="fas fa-hourglass-half"></i> Consumer Lag: <strong id="consumerLag">0</strong>
+                    </div>
+                </div>
+
+                <div class="monitor-card">
+                    <h3><i class="fas fa-layer-group"></i> Topics Status</h3>
+                    <div class="topic-item">
+                        <i class="fas fa-folder"></i> <strong>orders:</strong> <span id="ordersTopicCount">0</span> messages
+                    </div>
+                    <div class="topic-item">
+                        <i class="fas fa-redo"></i> <strong>orders-retry:</strong> <span id="retryTopicCount">0</span> messages
+                    </div>
+                    <div class="topic-item">
+                        <i class="fas fa-skull"></i> <strong>orders-dlq:</strong> <span id="dlqTopicCount">0</span> messages
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Quick Actions Section -->
+        <section class="quick-actions-section">
+            <h2><i class="fas fa-bolt"></i> Quick Actions</h2>
+            <div class="actions-grid">
+                <button class="action-btn" onclick="refreshDashboard()">
+                    <i class="fas fa-sync-alt"></i>
+                    <span>Refresh Dashboard</span>
+                </button>
+                <button class="action-btn" onclick="clearStats()">
+                    <i class="fas fa-trash"></i>
+                    <span>Clear Statistics</span>
+                </button>
+                <button class="action-btn" onclick="window.open('http://localhost:8080', '_blank')">
+                    <i class="fas fa-external-link-alt"></i>
+                    <span>Open Kafka UI</span>
+                </button>
+                <button class="action-btn" onclick="exportData()">
+                    <i class="fas fa-download"></i>
+                    <span>Export Data</span>
+                </button>
+            </div>
+        </section>
+
+    </div>
+
+    <!-- Footer -->
+    <footer class="dashboard-footer">
+        <p>Kafka Order Processing System | Built with Spring Boot 3.3.5, Apache Kafka 3.7.1, Confluent Platform 7.6.0</p>
+        <p>Auto-refresh enabled | Last updated: <span id="lastUpdate">--:--:--</span></p>
+    </footer>
+
+    <!-- Toast Notification Container -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>

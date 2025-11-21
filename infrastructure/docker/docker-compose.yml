@@ -254,6 +254,32 @@ services:
       retries: 5
       start_period: 60s
 
+  # Dashboard Frontend
+  dashboard:
+    build:
+      context: ../../dashboard
+      dockerfile: Dockerfile
+    container_name: dashboard
+    hostname: dashboard
+    networks:
+      - kafka-net
+    depends_on:
+      producer-service:
+        condition: service_healthy
+      consumer-service:
+        condition: service_healthy
+    ports:
+      - "${DASHBOARD_PORT}:3000"
+    environment:
+      NGINX_HOST: localhost
+      NGINX_PORT: 3000
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
 volumes:
   zookeeper-data:
     driver: local

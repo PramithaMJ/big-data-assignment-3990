@@ -11,9 +11,12 @@
 
 ---
 
+## EG/2020/3990 - Jayasooriya LPM
+
 ## Table of Contents
 
 - [Overview](#overview)
+- [Dashboard Demo](#-dashboard-demo)
 - [Quick Start](#quick-start)
 - [System Architecture](#system-architecture)
 - [Features](#features)
@@ -33,11 +36,36 @@ A **production-grade distributed order processing system** built with Apache Kaf
 **Schema Management** - Confluent Schema Registry with Avro serialization
 **Fault Tolerance** - Automatic retry with exponential backoff + Dead Letter Queue
 **Real-time Aggregation** - Thread-safe running average calculation
+**Web Dashboard** - Modern UI for monitoring and order creation (Port 3000)
 **Containerized** - Full Docker Compose orchestration with health checks
 **Observable** - Kafka UI dashboard, structured logging, metrics endpoints
 **Production-Ready** - Idempotent producers, manual commits, graceful shutdown
 
 ---
+
+## Dashboard Demo
+
+### Access the Interactive Dashboard
+
+```
+http://localhost:3000
+```
+
+**Features**:
+
+- **Real-time statistics** - Total orders, running average, revenue, success rate
+- **Order creation** - Interactive form with random data generation
+- **Cluster monitoring** - Health status for all 9 containers
+- **Service health** - Producer and consumer status with health checks
+- **Order history** - Recent orders table with status tracking
+- **Quick actions** - Batch orders, export data, manual refresh
+
+**Quick Start**:
+
+```bash
+./infrastructure/scripts/start-dashboard.sh
+# Opens browser automatically at http://localhost:3000
+```
 
 ## Quick Start
 
@@ -106,28 +134,42 @@ curl http://localhost:8082/api/consumer/stats | python3 -m json.tool
 
 ```
 ┌─────────────────────┐         ┌──────────────────────────────────┐         ┌─────────────────────┐
-│  Producer Service   │         │       Kafka Cluster (3 nodes)    │         │  Consumer Service   │
-│    (Port 8090)      │────────▶│  ┌────────┬────────┬──────────┐  │────────▶│    (Port 8082)      │
-│                     │         │  │ kafka1 │ kafka2 │  kafka3  │  │         │                     │
-│  REST API:          │         │  │ :9092  │ :9093  │  :9094   │  │         │  Processes:         │
-│  • POST /api/orders │         │  └────────┴────────┴──────────┘  │         │  • Order validation │
-│  • Avro Serializer  │         │           RF=3, min ISR=2        │         │  • Running average  │
-└─────────────────────┘         │                                  │         │  • Retry handling   │
-         │                      │  Topics:                         │         │  • DLQ processing   │
-         │                      │  • orders (3 partitions)         │         └─────────────────────┘
-         │                      │  • orders-retry (3 partitions)   │                  │
-         │                      │  • orders-dlq (1 partition)      │                  │
-         │                      └──────────────────────────────────┘                  │
-         │                                    │                                       │
-         v                                    v                                       v
-┌─────────────────────┐         ┌──────────────────────────────────┐         ┌─────────────────────┐
-│  Schema Registry    │◀────────│         ZooKeeper                │         │     Kafka UI        │
-│    (Port 8081)      │         │        (Port 2181)               │         │    (Port 8080)      │
-│                     │         │                                  │         │                     │
-│  • Schema storage   │         │  • Cluster coordination          │         │  • Visual monitoring│
-│  • Schema evolution │         │  • Leader election               │         │  • Message browser  │
-│  • Validation       │         │  • Broker metadata               │         │  • Consumer groups  │
-└─────────────────────┘         └──────────────────────────────────┘         └─────────────────────┘
+│     Dashboard       │         │       Kafka Cluster (3 nodes)    │         │  Consumer Service   │
+│    (Port 3000)      │         │  ┌────────┬────────┬──────────┐  │         │    (Port 8082)      │
+│                     │    ┌───▶│  │ kafka1 │ kafka2 │  kafka3  │  │────────▶│                     │
+│  Web Interface:     │    │    │  │ :9092  │ :9093  │  :9094   │  │         │  Processes:         │
+│  • Order creation   │    │    │  └────────┴────────┴──────────┘  │         │  • Order validation │
+│  • Statistics view  │    │    │           RF=3, min ISR=2        │         │  • Running average  │
+│  • System monitor   │    │    │                                  │         │  • Retry handling   │
+│  • Real-time updates│    │    │  Topics:                         │         │  • DLQ processing   │
+└──────────┬──────────┘    │    │  • orders (3 partitions)         │         │  • Stats API        │
+           │               │    │  • orders-retry (3 partitions)   │         └──────────┬──────────┘
+           │               │    │  • orders-dlq (1 partition)      │                    │
+           v               │    └──────────────────────────────────┘                    │
+┌─────────────────────┐    │                  │                                         │
+│  Producer Service   │────┘                  │                                         │
+│    (Port 8090)      │                       │                                         │
+│                     │                       v                                         │
+│  REST API:          │         ┌──────────────────────────────────┐                   │
+│  • POST /api/orders │         │         ZooKeeper                │                   │
+│  • Avro Serializer  │         │        (Port 2181)               │                   │
+└──────────┬──────────┘         │                                  │                   │
+           │                    │  • Cluster coordination          │                   │
+           v                    │  • Leader election               │                   │
+┌─────────────────────┐         │  • Broker metadata               │                   │
+│  Schema Registry    │         └──────────────────────────────────┘                   │
+│    (Port 8081)      │                       │                                         │
+│                     │                       v                                         v
+│  • Schema storage   │         ┌──────────────────────────────────┐         ┌─────────────────────┐
+│  • Schema evolution │         │          Kafka UI                │◀────────│  Dashboard Stats    │
+│  • Validation       │         │        (Port 8080)               │         │   GET /stats        │
+└─────────────────────┘         │                                  │         │   (Port 8082)       │
+                                │  • Visual monitoring             │         └─────────────────────┘
+                                │  • Message browser               │
+                                │  • Consumer groups               │
+                                └──────────────────────────────────┘
+
+                                     9 Containers Total
 ```
 
 ### Message Flow
@@ -292,18 +334,28 @@ Big-data-Assignment/
 │
 ├── infrastructure/                # Infrastructure as code
 │   ├── docker/
-│   │   ├── docker-compose.yml                        # 8 containers orchestration
+│   │   ├── docker-compose.yml                        # 9 containers orchestration
 │   │   ├── .env                                      # Environment variables
 │   │   └── .env.example                              # Template
 │   └── scripts/
 │       ├── quick-start.sh                            # One-command deployment
+│       ├── start-dashboard.sh                        # Dashboard launcher
 │       ├── create-topics.sh                          # Kafka topic creation
 │       ├── seed-data.sh                              # Test data generation
+│       └── check-cluster.sh                          # Health check script
 │
+├── dashboard/                     # Web Dashboard (Port 3000)
+│   ├── index.html                                    # Main UI
+│   ├── styles.css                                    # Styling
+│   ├── app.js                                        # Frontend logic
+│   ├── nginx.conf                                    # Nginx config
+│   ├── Dockerfile                                    # Container build
+│   └── README.md                                     # Dashboard docs
 │
 ├── docs/                          # Comprehensive documentation
 │   ├── ARCHITECTURE.md                               # System architecture
-│   └── MANUAL-STARTUP-DEMO-GUIDE.md                  # Step-by-step guide
+│   ├── MANUAL-STARTUP-DEMO-GUIDE.md                  # Step-by-step guide
+│   └── DASHBOARD-DEMO-GUIDE.md                       # Dashboard demo scenarios
 │
 └── README.md                      # This file
 ```
@@ -430,6 +482,27 @@ Response:
 ---
 
 ## Monitoring & Operations
+
+### Web Dashboard
+
+**Access:** http://localhost:3000
+
+**Features:**
+
+- ** Real-time Statistics** - Total orders, running average, revenue, success rate
+- **🛠️ Order Management** - Create single orders, random orders, or batch of 10
+- **📈 System Monitoring** - All 9 containers health status
+- **🔍 Service Health** - Producer & consumer service checks
+- **📋 Order History** - Recent orders table with status tracking
+- **⚡ Quick Actions** - Refresh, clear stats, export data
+
+**Quick Start:**
+
+```bash
+./infrastructure/scripts/start-dashboard.sh
+```
+
+**Demo Guide:** [DASHBOARD-DEMO-GUIDE.md](docs/DASHBOARD-DEMO-GUIDE.md)
 
 ### Kafka UI Dashboard
 
