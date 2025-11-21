@@ -67,9 +67,8 @@ public class DLQHandler {
         log.warn("⚠️  DLQ ALERT - Order Failed All Processing Attempts");
         log.warn("═══════════════════════════════════════════════════════════");
         log.warn("Order ID:       {}", order.getOrderId());
-        log.warn("Customer ID:    {}", order.getCustomerId());
-        log.warn("Product ID:     {}", order.getProductId());
-        log.warn("Total Amount:   ${}", order.getTotalAmount());
+        log.warn("Product:        {}", order.getProduct());
+        log.warn("Price:          ${}", order.getPrice());
         log.warn("Retry Count:    {}", retryCount);
         log.warn("Final Error:    {}", exception.getMessage());
         log.warn("Timestamp:      {}", new java.util.Date(order.getTimestamp()));

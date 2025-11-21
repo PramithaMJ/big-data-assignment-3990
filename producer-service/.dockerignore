@@ -1,0 +1,13 @@
+# Docker ignore file for producer-service
+target/
+!target/*.jar
+*.log
+*.tmp
+.mvn/wrapper/maven-wrapper.jar
+.git
+.gitignore
+.idea
+*.iml
+.vscode
+*.md
+HELP.md

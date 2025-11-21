@@ -5,31 +5,22 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>3.5.7</version>
+		<version>3.3.5</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.pramithamj</groupId>
 	<artifactId>consumer-service</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>consumer-service</name>
-	<description>consumer-service</description>
-	<url/>
-	<licenses>
-		<license/>
-	</licenses>
-	<developers>
-		<developer/>
-	</developers>
-	<scm>
-		<connection/>
-		<developerConnection/>
-		<tag/>
-		<url/>
-	</scm>
+	<description>Kafka Consumer Service with Spring Boot</description>
 	<properties>
 		<java.version>17</java.version>
+		<maven.compiler.source>17</maven.compiler.source>
+		<maven.compiler.target>17</maven.compiler.target>
+		<spring-kafka.version>3.2.4</spring-kafka.version>
+		<kafka-clients.version>3.7.1</kafka-clients.version>
 		<avro.version>1.11.3</avro.version>
-		<confluent.version>7.5.0</confluent.version>
+		<confluent.version>7.6.0</confluent.version>
 	</properties>
 
 	<repositories>
@@ -85,6 +76,13 @@
 			<groupId>org.springframework.kafka</groupId>
 			<artifactId>spring-kafka-test</artifactId>
 			<scope>test</scope>
+			<exclusions>
+				<!-- Exclude kafka-server as it doesn't exist in Kafka 3.6.x -->
+				<exclusion>
+					<groupId>org.apache.kafka</groupId>
+					<artifactId>kafka-server</artifactId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 	</dependencies>
 
@@ -94,14 +92,6 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-compiler-plugin</artifactId>
-				<configuration>
-					<annotationProcessorPaths>
-						<path>
-							<groupId>org.projectlombok</groupId>
-							<artifactId>lombok</artifactId>
-						</path>
-					</annotationProcessorPaths>
-				</configuration>
 			</plugin>
 
 			<!-- Avro Maven Plugin -->

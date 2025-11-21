@@ -27,8 +27,8 @@ public class OrderProducer {
      * @return CompletableFuture for async handling
      */
     public CompletableFuture<SendResult<String, Object>> sendOrder(Order order) {
-        log.info("Sending order to Kafka: orderId={}, customerId={}, totalAmount={}", 
-                 order.getOrderId(), order.getCustomerId(), order.getTotalAmount());
+        log.info("Sending order to Kafka: orderId={}, product={}, price=${}", 
+                 order.getOrderId(), order.getProduct(), order.getPrice());
         
         CompletableFuture<SendResult<String, Object>> future = kafkaTemplate.send(
             ordersTopic, 

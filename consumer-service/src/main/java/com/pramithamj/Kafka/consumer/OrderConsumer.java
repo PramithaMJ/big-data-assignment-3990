@@ -47,14 +47,14 @@ public class OrderConsumer {
             Acknowledgment acknowledgment) {
         
         try {
-            log.info("Received order: orderId={}, customerId={}, totalAmount=${}, partition={}, offset={}", 
-                    order.getOrderId(), order.getCustomerId(), order.getTotalAmount(), partition, offset);
+            log.info("📦 Received order: orderId={}, product={}, price=${:.2f}, partition={}, offset={}", 
+                    order.getOrderId(), order.getProduct(), order.getPrice(), partition, offset);
 
             // Process the order
             processOrder(order);
 
-            // Update running average
-            double newAverage = averageCalculator.addAmount(order.getTotalAmount());
+            // Update running average for price aggregation
+            double newAverage = averageCalculator.addAmount(order.getPrice());
             
             long processed = processedCount.incrementAndGet();
             
@@ -111,7 +111,7 @@ public class OrderConsumer {
             processOrder(order);
 
             // Update running average
-            averageCalculator.addAmount(order.getTotalAmount());
+            averageCalculator.addAmount(order.getPrice());
             
             processedCount.incrementAndGet();
             
@@ -152,8 +152,8 @@ public class OrderConsumer {
             @Header(KafkaHeaders.OFFSET) long offset,
             Acknowledgment acknowledgment) {
         
-        log.warn("Processing order from DLQ: orderId={}, customerId={}, totalAmount=${}", 
-                order.getOrderId(), order.getCustomerId(), order.getTotalAmount());
+        log.warn("💀 Processing order from DLQ: orderId={}, product={}, price=${:.2f}", 
+                order.getOrderId(), order.getProduct(), order.getPrice());
 
         // In production, DLQ messages would be:
         // - Logged to a database for investigation
@@ -177,12 +177,8 @@ public class OrderConsumer {
         log.debug("Processing order business logic: orderId={}", order.getOrderId());
         
         // Validation
-        if (order.getTotalAmount() <= 0) {
-            throw new IllegalArgumentException("Invalid order amount: " + order.getTotalAmount());
-        }
-        
-        if (order.getQuantity() <= 0) {
-            throw new IllegalArgumentException("Invalid order quantity: " + order.getQuantity());
+        if (order.getPrice() <= 0) {
+            throw new IllegalArgumentException("Invalid order price: " + order.getPrice());
         }
 
         // Simulate some processing time
