@@ -76,7 +76,7 @@ http://localhost:3000
 
 ```bash
 # Clone repository
-git clone <repository-url>
+git clone https://github.com/PramithaMJ/kafka-order-processing-system
 cd Big-data-Assignment
 
 # Start entire system (infrastructure + services)
@@ -486,21 +486,13 @@ Response:
 **Features:**
 
 - ** Real-time Statistics** - Total orders, running average, revenue, success rate
-- **🛠️ Order Management** - Create single orders, random orders, or batch of 10
-- **📈 System Monitoring** - All 9 containers health status
-- **🔍 Service Health** - Producer & consumer service checks
-- **📋 Order History** - Recent orders table with status tracking
-- **⚡ Quick Actions** - Refresh, clear stats, export data
+- **Order Management** - Create single orders, random orders, or batch of 10
+- **System Monitoring** - All 9 containers health status
+- **Service Health** - Producer & consumer service checks
+- **Order History** - Recent orders table with status tracking
+- **Quick Actions** - Refresh, clear stats, export data
 
-**Quick Start:**
-
-```bash
-./infrastructure/scripts/start-dashboard.sh
-```
-
-**Demo Guide:** [DASHBOARD-DEMO-GUIDE.md](docs/DASHBOARD-DEMO-GUIDE.md)
-
-### Kafka UI Dashboard
+**Kafka UI Dashboard**
 
 **Access:** http://localhost:8080
 
